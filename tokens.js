@@ -12,7 +12,7 @@ export default [
             maxRetries: 5,
         },
         presence: {
-            status: "idle",
+            status: "Sterming",
         },
         selfMute: true,
     },
