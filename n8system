@@ -1,0 +1,1119 @@
+// language: JavaScript, file: main.js
+// runtime: Node.js 18+, discord.js v14, @discordjs/voice v0.17
+// ⚠️ node-fetch: اثبّته v2 (require-compatible): npm install node-fetch@2
+
+"use strict";
+const {
+  Client, GatewayIntentBits, Partials, Collection,
+  SlashCommandBuilder, EmbedBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  PermissionFlagsBits, AuditLogEvent,
+  ActivityType, REST, Routes,
+  AllowedMentionsTypes,
+} = require("discord.js");
+const {
+  joinVoiceChannel, createAudioPlayer, createAudioResource,
+  AudioPlayerStatus, VoiceConnectionStatus, getVoiceConnection,
+  StreamType, NoSubscriberBehavior,
+} = require("@discordjs/voice");
+const fs   = require("fs");
+const path = require("path");
+const fetch = require("node-fetch");
+
+// ================== الإعدادات ==================
+const TOKEN = "MTU2OTY0MjcyMTU4MzQzMTc3MA.GiVr4a.gg7W3n7-2DQXD0MvMG0wSC1spLLmI8aM_Lun0Y"
+const GUILD_ID     = "1524213002788933693";
+
+const WELCOME_CHANNEL_ID = "1569635852047487067";
+const RULES_CHANNEL_ID   = "1569635853876076595";
+const CHAT_CHANNEL_ID    = "1569635861249662976";
+const OWNER_IDS          = ["1349679488576786524", "1234459461322801163"];
+const AUTO_ROLE_ID       = "1569635838231449621";
+
+const ADHKAR_CHANNEL_ID   = "1569635868778565693";
+const ADHKAR_EVERY_HOURS  = 1;
+
+const DATA_FILE  = "line_channels.json";
+const SCORES_FILE = "scores.json";
+const PROT_FILE  = "protection_whitelist.json";
+const SUBS_FILE  = "dm_subscribers.json";
+
+const LINE_B64 = "PASTE_YOUR_ORIGINAL_BASE64_HERE";
+
+const RADIO_URL   = "https://stream.radiojar.com/8s5u5tpdtwzuv";
+const RECITERS_API = "https://www.mp3quran.net/api/v3/reciters?language=ar";
+const WELCOME_IMAGE_URL =
+  "https://cdn.discordapp.com/attachments/1545404435080024175/1569436717675577425/2026-11-09_224058.png?ex=6af81098&is=6af6bf18&hm=9e8c568a9f20bd7e3962344d5150afc2ab5d3f6bc69058bde887405bc38ee720";
+const HISN_URL = "https://hisnmuslim.com/";
+
+const BROADCAST_DELAY     = 1500;
+const BROADCAST_ALL_DELAY = 4000;
+
+// --- حماية ---
+const ANTI_SPAM       = true;
+const SPAM_MAX_MSGS   = 6;
+const SPAM_WINDOW_MS  = 5000;
+const SPAM_TIMEOUT_MIN = 10;
+const ANTI_INVITES    = true;
+const ANTI_LINKS      = false;
+const ALLOWED_DOMAINS = ["tenor.com","giphy.com","youtube.com","youtu.be"];
+const LINK_FREE_CHANNEL_IDS = [];
+const ANTI_MENTIONS   = true;
+const MAX_MENTIONS    = 5;
+const ANTI_BAD_WORDS  = true;
+const BAD_WORDS       = [];
+const ANTI_RAID       = true;
+const RAID_JOIN_LIMIT = 6;
+const RAID_WINDOW_MS  = 10000;
+const RAID_MODE_MS    = 120000;
+const RAID_ACTION     = "timeout";
+const MIN_ACCOUNT_AGE_DAYS = 0;
+const ANTI_NUKE       = true;
+const NUKE_LIMIT      = 3;
+const NUKE_WINDOW_MS  = 15000;
+const NUKE_ACTION     = "strip";
+const ANTI_BOT_ADD    = true;
+const LOG_CHANNEL_ID  = "0";
+
+// ====================== السور ======================
+const SURAHS = [
+  "الفاتحة","البقرة","آل عمران","النساء","المائدة","الأنعام","الأعراف","الأنفال","التوبة","يونس",
+  "هود","يوسف","الرعد","إبراهيم","الحجر","النحل","الإسراء","الكهف","مريم","طه",
+  "الأنبياء","الحج","المؤمنون","النور","الفرقان","الشعراء","النمل","القصص","العنكبوت","الروم",
+  "لقمان","السجدة","الأحزاب","سبأ","فاطر","يس","الصافات","ص","الزمر","غافر",
+  "فصلت","الشورى","الزخرف","الدخان","الجاثية","الأحقاف","محمد","الفتح","الحجرات","ق",
+  "الذاريات","الطور","النجم","القمر","الرحمن","الواقعة","الحديد","المجادلة","الحشر","الممتحنة",
+  "الصف","الجمعة","المنافقون","التغابن","الطلاق","التحريم","الملك","القلم","الحاقة","المعارج",
+  "نوح","الجن","المزمل","المدثر","القيامة","الإنسان","المرسلات","النبأ","النازعات","عبس",
+  "التكوير","الانفطار","المطففين","الانشقاق","البروج","الطارق","الأعلى","الغاشية","الفجر","البلد",
+  "الشمس","الليل","الضحى","الشرح","التين","العلق","القدر","البينة","الزلزلة","العاديات",
+  "القارعة","التكاثر","العصر","الهمزة","الفيل","قريش","الماعون","الكوثر","الكافرون","النصر",
+  "المسد","الإخلاص","الفلق","الناس",
+];
+
+// ====================== الأذكار ======================
+const ADHKAR = [
+  {
+    text: "وقال صلى الله عليه وسلم: ((أقرب ما يكون الربّ من العبد في جوف الليل الآخِر، فإن استطعتَ أن تكون ممن يذكر الله في تلك الساعة فكُنْ)).",
+    category: "الاستغفار و التوبة | حصن المسلم", audio: null,
+  },
+  {
+    text: "قال رسول الله صلى الله عليه وسلم: ((والله إني لأستغفر الله وأتوب إليه في اليوم أكثر من سبعين مرّة)).",
+    category: "الاستغفار و التوبة | حصن المسلم", audio: null,
+  },
+  {
+    text: "((أستغفر الله (ثلاثاً) اللهم أنت السلام، ومنك السلام، تباركت يا ذا الجلال والإكرام)).",
+    category: "الأذكار بعد السلام من الصلاة | حصن المسلم", audio: null,
+  },
+  {
+    text: "((سبحان الله وبحمده، سبحان الله العظيم)). كلمتان خفيفتان على اللسان، ثقيلتان في الميزان، حبيبتان إلى الرحمن.",
+    category: "فضل التسبيح | حصن المسلم", audio: null,
+  },
+  {
+    text: "((لا حول ولا قوة إلا بالله)). كنز من كنوز الجنة.",
+    category: "أذكار عامة | حصن المسلم", audio: null,
+  },
+];
+
+// ====================== بيانات الألعاب ======================
+const QUESTIONS = [
+  { q:"ما عاصمة اليابان؟", options:["سيول","طوكيو","بكين","بانكوك"], answer:1 },
+  { q:"كم عدد كواكب المجموعة الشمسية؟", options:["7","8","9","10"], answer:1 },
+  { q:"ما أكبر محيط في العالم؟", options:["الأطلسي","الهندي","الهادئ","المتجمد"], answer:2 },
+  { q:"من مخترع المصباح الكهربائي؟", options:["إديسون","نيوتن","تسلا","أينشتاين"], answer:0 },
+  { q:"ما أطول نهر في العالم؟", options:["الأمازون","النيل","الفرات","المسيسيبي"], answer:1 },
+  { q:"كم عدد أركان الإسلام؟", options:["3","4","5","6"], answer:2 },
+  { q:"ما أكبر دولة في العالم مساحة؟", options:["الصين","كندا","روسيا","أمريكا"], answer:2 },
+];
+const WORDS = ["مدرسة","حاسوب","طائرة","مكتبة","برمجة","سيارة","شجرة","قهوة","صحراء","كتاب","مطار","سفينة"];
+
+// =================== State ===================
+let recitersCache    = [];
+const guildReciter   = new Map();  // guildId -> reciterData
+const guildPlayers   = new Map();  // guildId -> AudioPlayer
+const inviteCache    = new Map();  // guildId -> Map<code, uses>
+const msgTimes       = new Map();  // `${guildId}:${userId}` -> [timestamps]
+const joinLog        = new Map();  // guildId -> [{time, memberId}]
+const raidUntil      = new Map();  // guildId -> timestamp
+const nukeLog        = new Map();  // `${guildId}:${userId}` -> [timestamps]
+const scrambleGames  = new Map();  // channelId -> word
+let broadcastRunning = false;
+let broadcastCancel  = false;
+const DEFAULT_RECITER = {
+  name: "مشاري العفاسي",
+  server: "https://server8.mp3quran.net/afs/",
+  surahs: new Set([...Array(114).keys()].map(i => i + 1)),
+};
+
+// =================== Helpers ===================
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function normalize(text) {
+  return text
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/^سوره\s+/, "")
+    .trim();
+}
+
+function findSurah(query) {
+  query = query.trim();
+  if (/^\d+$/.test(query)) {
+    const n = parseInt(query);
+    return (n >= 1 && n <= 114) ? n : null;
+  }
+  const q = normalize(query);
+  if (!q) return null;
+  const names = SURAHS.map(normalize);
+  for (let i = 0; i < names.length; i++) {
+    if (names[i] === q || names[i].replace(/^ال/, "") === q.replace(/^ال/, "")) return i + 1;
+  }
+  for (let i = 0; i < names.length; i++) {
+    if (names[i].includes(q)) return i + 1;
+  }
+  return null;
+}
+
+// =================== JSON I/O ===================
+function readJSON(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); }
+  catch { return fallback; }
+}
+function writeJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8");
+}
+
+let lineChannels = new Set(readJSON(DATA_FILE, []));
+let trustedIds   = new Set(readJSON(PROT_FILE, []));
+let dmSubs       = new Set(readJSON(SUBS_FILE, []));
+
+function saveLineChannels() { writeJSON(DATA_FILE, [...lineChannels]); }
+function saveTrusted()      { writeJSON(PROT_FILE, [...trustedIds]); }
+function saveSubs()         { writeJSON(SUBS_FILE, [...dmSubs]); }
+
+function loadScores() { return readJSON(SCORES_FILE, {}); }
+function addPoint(guildId, userId, pts = 1) {
+  const data = loadScores();
+  if (!data[guildId]) data[guildId] = {};
+  data[guildId][userId] = (data[guildId][userId] || 0) + pts;
+  writeJSON(SCORES_FILE, data);
+}
+
+// =================== Voice ===================
+async function ensureVoice(interaction) {
+  const member = interaction.member;
+  if (!member.voice?.channel) {
+    await interaction.reply({ content: "❌ ادخل روم صوتي أول، وبعدين اكتب الأمر", ephemeral: true });
+    return null;
+  }
+  const channel = member.voice.channel;
+  const existing = getVoiceConnection(interaction.guildId);
+  if (existing && existing.joinConfig.channelId === channel.id) return existing;
+
+  try {
+    const conn = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: interaction.guildId,
+      adapterCreator: interaction.guild.voiceAdapterCreator,
+      selfDeaf: false,
+    });
+    return conn;
+  } catch (e) {
+    await interaction.reply({ content: `❌ ما قدرت أدخل الروم: ${e.message}`, ephemeral: true });
+    return null;
+  }
+}
+
+function getOrCreatePlayer(guildId) {
+  if (!guildPlayers.has(guildId)) {
+    const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+    guildPlayers.set(guildId, player);
+  }
+  return guildPlayers.get(guildId);
+}
+
+async function playURL(interaction, conn, url, deferred = true) {
+  try {
+    const player = getOrCreatePlayer(interaction.guildId);
+    const resource = createAudioResource(url, {
+      inputType: StreamType.Arbitrary,
+      inlineVolume: false,
+    });
+    player.play(resource);
+    conn.subscribe(player);
+    return true;
+  } catch (e) {
+    const msg = `❌ خطأ في التشغيل: ${e.message}`;
+    if (deferred) await interaction.editReply(msg);
+    else await interaction.reply({ content: msg, ephemeral: true });
+    return false;
+  }
+}
+
+// =================== Reciters ===================
+async function loadReciters() {
+  if (recitersCache.length) return recitersCache;
+  const res = await fetch(RECITERS_API);
+  const data = await res.json();
+  recitersCache = data.reciters
+    .filter(r => r.moshaf?.length)
+    .map(r => {
+      const m = r.moshaf[0];
+      const surahs = new Set(
+        (m.surah_list || "").split(",").filter(x => /^\d+$/.test(x.trim())).map(Number)
+      );
+      let server = m.server || "";
+      if (!server.endsWith("/")) server += "/";
+      return { name: r.name, server, surahs };
+    });
+  return recitersCache;
+}
+
+// =================== Protection helpers ===================
+function inScope(guildId) {
+  return !GUILD_ID || guildId === GUILD_ID;
+}
+function isTrusted(userId, guild) {
+  return (
+    OWNER_IDS.includes(userId) ||
+    userId === guild.ownerId ||
+    trustedIds.has(userId) ||
+    userId === client.user?.id
+  );
+}
+async function protLog(guild, text) {
+  console.log(`🛡️ ${text}`);
+  if (LOG_CHANNEL_ID && LOG_CHANNEL_ID !== "0") {
+    const ch = guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (ch) {
+      await ch.send({ embeds: [new EmbedBuilder().setDescription(text).setColor("Red")] }).catch(() => {});
+    }
+  }
+}
+async function safeTimeout(member, minutes, reason) {
+  try {
+    await member.timeout(minutes * 60 * 1000, reason);
+    return true;
+  } catch { return false; }
+}
+const INVITE_RE = /(?:discord\.gg|discordapp?\.com\/invite)\/\w+/i;
+const URL_RE    = /(?:https?:\/\/|www\.)([^\s/]+)/gi;
+
+function hasBlockedLink(text) {
+  let m;
+  URL_RE.lastIndex = 0;
+  while ((m = URL_RE.exec(text)) !== null) {
+    const host = m[1].toLowerCase().replace(/^www\./, "");
+    if (!ALLOWED_DOMAINS.some(d => host === d || host.endsWith("." + d))) return true;
+  }
+  return false;
+}
+function hasBadWord(text) {
+  const clean = normalize(text);
+  return BAD_WORDS.some(w => w && clean.includes(normalize(w)));
+}
+
+async function auditExecutor(guild, action, targetId) {
+  await sleep(1000);
+  try {
+    const logs = await guild.fetchAuditLogs({ limit: 6, type: action });
+    const now = Date.now();
+    for (const entry of logs.entries.values()) {
+      if (now - entry.createdTimestamp > 15000) continue;
+      if (targetId && entry.target?.id !== targetId) continue;
+      return entry.executor;
+    }
+  } catch {}
+  return null;
+}
+
+async function handleDestructive(guild, action, targetId, what) {
+  if (!ANTI_NUKE || !inScope(guild.id)) return;
+  const user = await auditExecutor(guild, action, targetId);
+  if (!user || isTrusted(user.id, guild)) return;
+  const key = `${guild.id}:${user.id}`;
+  const now = Date.now();
+  if (!nukeLog.has(key)) nukeLog.set(key, []);
+  const dq = nukeLog.get(key).filter(t => now - t < NUKE_WINDOW_MS);
+  dq.push(now);
+  nukeLog.set(key, dq);
+  await protLog(guild, `⚠️ <@${user.id}> نفّذ: ${what} (${dq.length}/${NUKE_LIMIT})`);
+  if (dq.length >= NUKE_LIMIT) {
+    nukeLog.set(key, []);
+    await punishNuker(guild, user);
+  }
+}
+async function punishNuker(guild, user) {
+  let result;
+  try {
+    const member = guild.members.cache.get(user.id);
+    if (NUKE_ACTION === "ban" || !member) {
+      await guild.bans.create(user.id, { reason: "🛡️ حماية: تخريب" });
+      result = "تم حظره";
+    } else {
+      const removable = member.roles.cache.filter(
+        r => !r.managed && r.id !== guild.id && r.position < guild.members.me.roles.highest.position
+      );
+      await member.roles.remove(removable, "🛡️ حماية: تخريب");
+      result = "تم سحب رتبه";
+    }
+  } catch (e) { result = `فشل (${e.message})`; }
+  await protLog(guild, `🚨 **كشف تخريب** من <@${user.id}>: ${result}`);
+}
+
+async function raidPunish(member) {
+  try {
+    if (RAID_ACTION === "kick") await member.kick("🛡️ حماية: Raid");
+    else await member.timeout(60 * 60 * 1000, "🛡️ حماية: Raid");
+  } catch {}
+}
+
+// =================== Adhkar Embed ===================
+function buildAdhkarEmbed(item) {
+  return new EmbedBuilder()
+    .setTitle("ذكر وتذكير 🌙")
+    .setDescription(item.text)
+    .setColor(0x2b2d31)
+    .setFooter({ text: item.category })
+    .setTimestamp();
+}
+function adhkarRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("adhkar_listen").setLabel("استمع للذكر").setEmoji("🎧").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setLabel("حصن المسلم").setEmoji("📖").setStyle(ButtonStyle.Link).setURL(HISN_URL),
+  );
+}
+function subscribeRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("dm_sub").setLabel("فعّل التنبيهات").setEmoji("🔔").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("dm_unsub").setLabel("إلغاء التنبيهات").setEmoji("🔕").setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// =================== Slash Commands Definitions ===================
+const slashCommands = [
+  new SlashCommandBuilder().setName("join").setDescription("يدخل الروم الصوتي"),
+  new SlashCommandBuilder().setName("leave").setDescription("يطلع من الروم الصوتي"),
+  new SlashCommandBuilder().setName("quran").setDescription("تشغيل سورة")
+    .addStringOption(o => o.setName("surah").setDescription("رقم السورة أو اسمها").setRequired(true)),
+  new SlashCommandBuilder().setName("reciter").setDescription("اختيار القارئ")
+    .addStringOption(o => o.setName("name").setDescription("اسم القارئ").setRequired(true)),
+  new SlashCommandBuilder().setName("radio").setDescription("تشغيل إذاعة القرآن الكريم"),
+  new SlashCommandBuilder().setName("pause").setDescription("إيقاف مؤقت"),
+  new SlashCommandBuilder().setName("resume").setDescription("متابعة التشغيل"),
+  new SlashCommandBuilder().setName("stop").setDescription("إيقاف التشغيل"),
+  new SlashCommandBuilder().setName("ban").setDescription("حظر عضو")
+    .addUserOption(o => o.setName("member").setDescription("العضو").setRequired(true))
+    .addStringOption(o => o.setName("reason").setDescription("السبب")),
+  new SlashCommandBuilder().setName("unban").setDescription("فك الحظر بالآيدي")
+    .addStringOption(o => o.setName("user_id").setDescription("آيدي الشخص").setRequired(true)),
+  new SlashCommandBuilder().setName("clear").setDescription("حذف رسائل")
+    .addIntegerOption(o => o.setName("amount").setDescription("العدد (1-100)").setRequired(true).setMinValue(1).setMaxValue(100)),
+  new SlashCommandBuilder().setName("kick").setDescription("طرد عضو")
+    .addUserOption(o => o.setName("member").setDescription("العضو").setRequired(true))
+    .addStringOption(o => o.setName("reason").setDescription("السبب")),
+  new SlashCommandBuilder().setName("timeout").setDescription("كتم عضو مؤقتاً")
+    .addUserOption(o => o.setName("member").setDescription("العضو").setRequired(true))
+    .addIntegerOption(o => o.setName("minutes").setDescription("المدة بالدقائق").setRequired(true).setMinValue(1).setMaxValue(40320))
+    .addStringOption(o => o.setName("reason").setDescription("السبب")),
+  new SlashCommandBuilder().setName("untimeout").setDescription("فك الكتم")
+    .addUserOption(o => o.setName("member").setDescription("العضو").setRequired(true)),
+  new SlashCommandBuilder().setName("lock").setDescription("قفل الروم"),
+  new SlashCommandBuilder().setName("unlock").setDescription("فتح الروم"),
+  new SlashCommandBuilder().setName("slowmode").setDescription("الوضع البطيء")
+    .addIntegerOption(o => o.setName("seconds").setDescription("الثواني (0 للإيقاف)").setRequired(true).setMinValue(0).setMaxValue(21600)),
+  new SlashCommandBuilder().setName("setline").setDescription("تفعيل الخط التلقائي"),
+  new SlashCommandBuilder().setName("unsetline").setDescription("إيقاف الخط التلقائي"),
+  new SlashCommandBuilder().setName("trivia").setDescription("سؤال ثقافي"),
+  new SlashCommandBuilder().setName("word").setDescription("لعبة الكلمة المبعثرة"),
+  new SlashCommandBuilder().setName("top").setDescription("أعلى 5 لاعبين"),
+  new SlashCommandBuilder().setName("dhikr").setDescription("إرسال ذكر الآن"),
+  new SlashCommandBuilder().setName("trust").setDescription("إضافة موثوق")
+    .addUserOption(o => o.setName("member").setDescription("العضو").setRequired(true)),
+  new SlashCommandBuilder().setName("untrust").setDescription("إزالة موثوق")
+    .addUserOption(o => o.setName("member").setDescription("العضو").setRequired(true)),
+  new SlashCommandBuilder().setName("trusted").setDescription("قائمة الموثوقين"),
+  new SlashCommandBuilder().setName("protection").setDescription("حالة الحماية"),
+  new SlashCommandBuilder().setName("subpanel").setDescription("إرسال رسالة الاشتراك"),
+  new SlashCommandBuilder().setName("broadcast").setDescription("رسالة للمشتركين")
+    .addStringOption(o => o.setName("message").setDescription("نص الرسالة").setRequired(true)),
+  new SlashCommandBuilder().setName("broadcastall").setDescription("رسالة لكل الأعضاء")
+    .addStringOption(o => o.setName("message").setDescription("نص الرسالة").setRequired(true)),
+  new SlashCommandBuilder().setName("cancelbroadcast").setDescription("إيقاف الإرسال الجماعي"),
+].map(c => c.toJSON());
+
+// =================== Client ===================
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildInvites,
+    GatewayIntentBits.GuildBans,
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+// =================== Ready ===================
+client.once("ready", async () => {
+  console.log(`✅ البوت شغال باسم ${client.user.tag}`);
+
+  // تسجيل الأوامر
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
+  await rest.put(Routes.applicationGuildCommands(client.user.id, GUILD_ID), { body: slashCommands })
+    .then(() => console.log("✅ تم تسجيل الأوامر"))
+    .catch(console.error);
+
+  // كاش الدعوات
+  for (const guild of client.guilds.cache.values()) await refreshInvites(guild);
+
+  // Status
+  client.user.setPresence({
+    status: "dnd",
+    activities: [{ name: "by crazy", type: ActivityType.Streaming, url: "https://www.twitch.tv/your_channel" }],
+  });
+
+  // الأذكار
+  setInterval(async () => {
+    const ch = client.channels.cache.get(ADHKAR_CHANNEL_ID);
+    if (!ch) return console.log("❌ الأذكار: ما لقيت الروم");
+    const item = ADHKAR[Math.floor(Math.random() * ADHKAR.length)];
+    await ch.send({ embeds: [buildAdhkarEmbed(item)], components: [adhkarRow()] }).catch(e => console.log("❌ الأذكار:", e.message));
+  }, ADHKAR_EVERY_HOURS * 60 * 60 * 1000);
+
+  // أول ذكر مباشرة
+  const firstCh = client.channels.cache.get(ADHKAR_CHANNEL_ID);
+  if (firstCh) {
+    const item = ADHKAR[Math.floor(Math.random() * ADHKAR.length)];
+    firstCh.send({ embeds: [buildAdhkarEmbed(item)], components: [adhkarRow()] }).catch(() => {});
+  }
+});
+
+// =================== Invite Cache ===================
+async function refreshInvites(guild) {
+  try {
+    const invites = await guild.invites.fetch();
+    const map = new Map();
+    invites.forEach(inv => map.set(inv.code, inv.uses || 0));
+    inviteCache.set(guild.id, map);
+  } catch { console.log(`⚠️ ما قدرت أقرأ دعوات ${guild.id}`); }
+}
+client.on("inviteCreate", inv => {
+  const map = inviteCache.get(inv.guild.id) || new Map();
+  map.set(inv.code, inv.uses || 0);
+  inviteCache.set(inv.guild.id, map);
+});
+client.on("inviteDelete", inv => {
+  const map = inviteCache.get(inv.guild.id);
+  if (map) map.delete(inv.code);
+});
+
+// =================== Member Join ===================
+client.on("guildMemberAdd", async member => {
+  if (member.guild.id !== GUILD_ID) return;
+  await sendWelcomeDM(member);
+
+  // رتبة تلقائية
+  const role = member.guild.roles.cache.get(AUTO_ROLE_ID);
+  if (role) {
+    await member.roles.add(role, "رتبة تلقائية").catch(e => console.log("❌ الرتبة:", e.message));
+  }
+
+  // معرفة الدعوة
+  let inviterText = "غير معروف", inviteUsedText = "غير معروف";
+  try {
+    const oldMap = inviteCache.get(member.guild.id) || new Map();
+    const newInvites = await member.guild.invites.fetch();
+    const usedInvite = newInvites.find(inv => (inv.uses || 0) > (oldMap.get(inv.code) || 0));
+    if (usedInvite) {
+      inviterText = usedInvite.inviter ? `<@${usedInvite.inviter.id}>` : "غير معروف";
+      inviteUsedText = `\`${usedInvite.code}\` • الاستخدام رقم \`${usedInvite.uses}\``;
+    }
+    const updated = new Map();
+    newInvites.forEach(inv => updated.set(inv.code, inv.uses || 0));
+    inviteCache.set(member.guild.id, updated);
+  } catch { console.log("⚠️ تعذر تحديد الدعوة"); }
+
+  const welcomeCh = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
+  const rulesCh   = member.guild.channels.cache.get(RULES_CHANNEL_ID);
+  const chatCh    = member.guild.channels.cache.get(CHAT_CHANNEL_ID);
+  if (!welcomeCh) return;
+
+  const ownersText = OWNER_IDS.map(id => `<@${id}>`).join(" ");
+  const embed = new EmbedBuilder()
+    .setTitle("حياك الله في السيرفر!")
+    .setDescription(
+      `أهلاً ${member}, نورت **N8**! 🖤\n\n` +
+      `👑 **أونرية السيرفر:** ${ownersText}\n\n` +
+      `👤 **يوزر الشخص:** \`${member.user.tag}\`\n` +
+      `🔗 **دعوة بواسطة:** ${inviterText}\n` +
+      `📨 **Invite used:** ${inviteUsedText}\n\n` +
+      `💬 **روم الشات:** ${chatCh || "روم الشات"}\n` +
+      `📜 **روم القوانين:** ${rulesCh || "روم القوانين"}\n\n` +
+      "نتمنى لك وقت ممتع بين أفراد مجتمع N8، وحياك الله مرة ثانية!"
+    )
+    .setColor(0xBEC3CD)
+    .setImage(WELCOME_IMAGE_URL)
+    .setFooter({ text: "N8 • Welcome to the community" });
+
+  await welcomeCh.send({ embeds: [embed] }).catch(e => console.log("❌ الترحيب:", e.message));
+
+  // Raid check
+  if (!ANTI_RAID || !inScope(member.guild.id)) return;
+  const now = Date.now();
+  if (!joinLog.has(member.guild.id)) joinLog.set(member.guild.id, []);
+  let dq = joinLog.get(member.guild.id).filter(e => now - e.time < RAID_WINDOW_MS);
+  dq.push({ time: now, memberId: member.id });
+  joinLog.set(member.guild.id, dq);
+
+  if (raidUntil.get(member.guild.id) > now) { await raidPunish(member); return; }
+  if (dq.length >= RAID_JOIN_LIMIT) {
+    raidUntil.set(member.guild.id, now + RAID_MODE_MS);
+    await protLog(member.guild, `🚨 **هجوم Raid!** دخل ${dq.length} عضو خلال ${RAID_WINDOW_MS/1000}ث — وضع الطوارئ شغال ${RAID_MODE_MS/1000}ث`);
+    for (const e of dq) {
+      const m = member.guild.members.cache.get(e.memberId);
+      if (m) await raidPunish(m);
+    }
+    joinLog.set(member.guild.id, []);
+    return;
+  }
+
+  // عمر الحساب
+  if (MIN_ACCOUNT_AGE_DAYS) {
+    const ageMs = Date.now() - member.user.createdTimestamp;
+    const ageDays = Math.floor(ageMs / 86400000);
+    if (ageDays < MIN_ACCOUNT_AGE_DAYS) {
+      await member.kick(`🛡️ حساب جديد (${ageDays} يوم)`).catch(() => {});
+      await protLog(member.guild, `🆕 تم طرد <@${member.id}>: حسابه عمره ${ageDays} يوم`);
+    }
+  }
+});
+
+// =================== Welcome DM ===================
+async function sendWelcomeDM(member) {
+  try {
+    await member.send(
+      `أهلاً ${member.displayName} 👋\n` +
+      `حياك الله في سيرفر **${member.guild.name}**!\n\n` +
+      "🎮 عندنا ألعاب جماعية تقدر تلعبها في الشات:\n" +
+      "• `/trivia` سؤال ثقافي، أول واحد يجاوب صح يفوز\n" +
+      "• `/word` رتّب الحروف المبعثرة\n" +
+      "• `/top` شوف مين المتصدر\n\n" +
+      "نتمنى لك وقت ممتع! 🖤"
+    );
+  } catch {}
+}
+
+// =================== Anti-Bot-Add ===================
+client.on("guildMemberAdd", async member => {
+  if (!member.bot || !ANTI_BOT_ADD) return;
+  const adder = await auditExecutor(member.guild, AuditLogEvent.BotAdd, member.id);
+  if (adder && !isTrusted(adder.id, member.guild)) {
+    await member.kick("🛡️ حماية: بوت أضافه شخص غير موثوق").catch(() => {});
+    await protLog(member.guild, `🤖 تم طرد البوت **${member.user.tag}** (أضافه <@${adder.id}>)`);
+  }
+});
+
+// =================== Anti-Nuke Events ===================
+client.on("channelDelete", ch => handleDestructive(ch.guild, AuditLogEvent.ChannelDelete, ch.id, "حذف روم"));
+client.on("roleDelete",    r  => handleDestructive(r.guild,  AuditLogEvent.RoleDelete,    r.id,  "حذف رتبة"));
+client.on("guildBanAdd",  ({ guild, user }) => handleDestructive(guild, AuditLogEvent.MemberBanAdd, user.id, "حظر عضو"));
+client.on("guildMemberRemove", m => {
+  if (!m.partial) handleDestructive(m.guild, AuditLogEvent.MemberKick, m.id, "طرد عضو");
+});
+
+// =================== Messages (line + games + protection) ===================
+client.on("messageCreate", async message => {
+  if (message.author.bot || !message.guild) return;
+  const prefix = "!";
+
+  // --- فحص لعبة الكلمة المبعثرة ---
+  const word = scrambleGames.get(message.channel.id);
+  if (word && normalize(message.content) === normalize(word)) {
+    scrambleGames.delete(message.channel.id);
+    addPoint(message.guild.id, message.author.id);
+    await message.reply(`🎉 ${message.author} صح! الكلمة: **${word}** (+1 نقطة)`);
+    return;
+  }
+
+  // --- الأوامر بالبريفكس ---
+  if (message.content.startsWith(prefix)) {
+    const args    = message.content.slice(prefix.length).trim().split(/\s+/);
+    const cmdName = args.shift().toLowerCase();
+    // يمكن توسيعه لاحقاً إذا احتجت أوامر نص إضافية
+    return;
+  }
+
+  // --- الحماية (رسائل عادية) ---
+  await handleProtection(message);
+
+  // --- الخط التلقائي ---
+  if (lineChannels.has(message.channel.id)) {
+    await sendLine(message.channel);
+  }
+});
+
+async function handleProtection(message) {
+  const member = message.member;
+  if (!member || !inScope(message.guild.id)) return;
+  if (isTrusted(member.id, message.guild)) return;
+  if (member.permissions.has(PermissionFlagsBits.Administrator) ||
+      member.permissions.has(PermissionFlagsBits.ManageMessages)) return;
+
+  const content = message.content || "";
+  let reason = null;
+  if (ANTI_INVITES && INVITE_RE.test(content))                       reason = "إرسال رابط دعوة";
+  else if (ANTI_LINKS && !LINK_FREE_CHANNEL_IDS.includes(message.channel.id) && hasBlockedLink(content)) reason = "إرسال روابط";
+  else if (ANTI_MENTIONS && (message.mentions.users.size + message.mentions.roles.size) >= MAX_MENTIONS) reason = "منشن جماعي";
+  else if (ANTI_BAD_WORDS && hasBadWord(content))                    reason = "كلمة ممنوعة";
+
+  if (reason) {
+    await message.delete().catch(() => {});
+    await message.channel.send({ content: `⚠️ ${member} ممنوع: ${reason}` })
+      .then(m => setTimeout(() => m.delete().catch(() => {}), 6000)).catch(() => {});
+    if (reason === "منشن جماعي") await safeTimeout(member, SPAM_TIMEOUT_MIN, "حماية: منشن جماعي");
+    await protLog(message.guild, `🧹 حذف رسالة <@${member.id}> في ${message.channel} | السبب: ${reason}`);
+    return;
+  }
+
+  if (ANTI_SPAM) {
+    const key = `${message.guild.id}:${member.id}`;
+    const now = Date.now();
+    if (!msgTimes.has(key)) msgTimes.set(key, []);
+    let times = msgTimes.get(key).filter(t => now - t < SPAM_WINDOW_MS);
+    times.push(now);
+    msgTimes.set(key, times);
+    if (times.length >= SPAM_MAX_MSGS) {
+      msgTimes.set(key, []);
+      await message.channel.messages.fetch({ limit: 50 })
+        .then(msgs => {
+          const toDelete = msgs.filter(m => m.author.id === member.id).first(30);
+          message.channel.bulkDelete(toDelete, true).catch(() => {});
+        }).catch(() => {});
+      const ok = await safeTimeout(member, SPAM_TIMEOUT_MIN, "حماية: سبام");
+      await message.channel.send({ content: `🚫 ${member} سبام، ${ok ? "تم كتمه" : "تم حذف رسائله"}.` })
+        .then(m => setTimeout(() => m.delete().catch(() => {}), 6000)).catch(() => {});
+      await protLog(message.guild, `🚫 سبام من <@${member.id}> (${ok ? "كتم" : "حذف فقط"})`);
+    }
+  }
+}
+
+// =================== Line ===================
+async function sendLine(channel) {
+  try {
+    const buf = Buffer.from(LINE_B64, "base64");
+    await channel.send({ files: [{ attachment: buf, name: "line.gif" }] });
+  } catch (e) { console.log("❌ خطأ في الخط:", e.message); }
+}
+
+// =================== Interaction Handler ===================
+client.on("interactionCreate", async interaction => {
+
+  // --- Buttons ---
+  if (interaction.isButton()) {
+    const id = interaction.customId;
+
+    if (id === "dm_sub") {
+      dmSubs.add(interaction.user.id); saveSubs();
+      return interaction.reply({ content: "✅ تم تفعيل التنبيهات، بتوصلك الإعلانات بالخاص", ephemeral: true });
+    }
+    if (id === "dm_unsub") {
+      dmSubs.delete(interaction.user.id); saveSubs();
+      return interaction.reply({ content: "✅ تم إلغاء التنبيهات", ephemeral: true });
+    }
+    if (id === "adhkar_listen") {
+      const embed  = interaction.message.embeds[0];
+      const item   = ADHKAR.find(a => a.text === embed?.description);
+      if (!item?.audio) return interaction.reply({ content: "❌ ما فيه صوت لهذا الذكر", ephemeral: true });
+      if (!interaction.member.voice?.channel) return interaction.reply({ content: "❌ ادخل روم صوتي أول", ephemeral: true });
+      await interaction.deferReply({ ephemeral: true });
+      const conn = await ensureVoice(interaction);
+      if (!conn) return;
+      await playURL(interaction, conn, item.audio, true);
+      return interaction.editReply("🎧 تم تشغيل الذكر");
+    }
+
+    // Trivia buttons
+    if (id.startsWith("trivia_")) {
+      const [, gameId, indexStr] = id.split("_");
+      const game = triviaGames.get(gameId);
+      if (!game) return interaction.reply({ content: "انتهت اللعبة", ephemeral: true });
+      if (game.winner) return interaction.reply({ content: "فيه أحد سبقك 😅", ephemeral: true });
+      if (game.wrongUsers.has(interaction.user.id)) return interaction.reply({ content: "جاوبت قبل، انتظر السؤال الجاي.", ephemeral: true });
+      const idx = parseInt(indexStr);
+      if (idx === game.item.answer) {
+        game.winner = interaction.user.id;
+        addPoint(interaction.guildId, interaction.user.id);
+        const row = triviaRow(game.item, gameId, true, idx);
+        await interaction.update({
+          content: `🎉 ${interaction.user} جاوب صح! الإجابة: **${game.item.options[idx]}** (+1 نقطة)`,
+          components: [row],
+        });
+        triviaGames.delete(gameId);
+      } else {
+        game.wrongUsers.add(interaction.user.id);
+        await interaction.reply({ content: "❌ إجابة خاطئة!", ephemeral: true });
+      }
+    }
+
+    // Broadcast confirm
+    if (id.startsWith("bcast_confirm_")) {
+      const authorId = id.replace("bcast_confirm_", "");
+      if (interaction.user.id !== authorId) return interaction.reply({ content: "❌ هذا مو لك", ephemeral: true });
+      const msg = pendingBroadcasts.get(interaction.message.id);
+      if (!msg) return interaction.reply({ content: "❌ انتهت صلاحية الطلب", ephemeral: true });
+      pendingBroadcasts.delete(interaction.message.id);
+      await interaction.update({ content: "⏳ بدأ الإرسال... (اكتب /cancelbroadcast للإيقاف)", components: [] });
+      runBroadcastAll(interaction.guild, interaction.channel, msg);
+    }
+    if (id.startsWith("bcast_cancel_")) {
+      const authorId = id.replace("bcast_cancel_", "");
+      if (interaction.user.id !== authorId) return interaction.reply({ content: "❌ هذا مو لك", ephemeral: true });
+      pendingBroadcasts.delete(interaction.message.id);
+      await interaction.update({ content: "تم الإلغاء.", components: [] });
+    }
+    return;
+  }
+
+  if (!interaction.isChatInputCommand()) return;
+
+  const { commandName } = interaction;
+  const guild  = interaction.guild;
+  const member = interaction.member;
+
+  // =================== Voice Commands ===================
+  if (commandName === "join") {
+    await interaction.deferReply();
+    const conn = await ensureVoice(interaction);
+    if (conn) await interaction.editReply(`✅ دخلت **${member.voice.channel.name}**`);
+  }
+  else if (commandName === "leave") {
+    const conn = getVoiceConnection(guild.id);
+    if (!conn) return interaction.reply("❌ أنا مو في أي روم صوتي");
+    conn.destroy(); guildPlayers.delete(guild.id);
+    await interaction.reply("👋 طلعت من الروم");
+  }
+  else if (commandName === "quran") {
+    await interaction.deferReply();
+    const q   = interaction.options.getString("surah");
+    const num = findSurah(q);
+    if (!num) return interaction.editReply("❌ ما لقيت السورة. اكتب رقمها (1-114) أو اسمها مثل: `/quran الكهف`");
+    const rec = guildReciter.get(guild.id) || DEFAULT_RECITER;
+    if (!rec.surahs.has(num)) return interaction.editReply(`❌ القارئ **${rec.name}** ما عنده هذي السورة`);
+    const conn = await ensureVoice(interaction);
+    if (!conn) return;
+    const url = `${rec.server}${String(num).padStart(3, "0")}.mp3`;
+    if (await playURL(interaction, conn, url, true))
+      await interaction.editReply(`📖 تشغيل سورة **${SURAHS[num - 1]}** بصوت **${rec.name}**`);
+  }
+  else if (commandName === "reciter") {
+    await interaction.deferReply();
+    const name = interaction.options.getString("name");
+    let items;
+    try { items = await loadReciters(); }
+    catch (e) { return interaction.editReply(`❌ ما قدرت أجيب قائمة القراء: ${e.message}`); }
+    const q = normalize(name);
+    const matches = items.filter(r => normalize(r.name).includes(q));
+    if (!matches.length) return interaction.editReply("❌ ما لقيت قارئ بهذا الاسم");
+    guildReciter.set(guild.id, matches[0]);
+    let msg = `✅ تم اختيار القارئ **${matches[0].name}**`;
+    if (matches.length > 1) msg += `\nنتائج ثانية: ${matches.slice(1, 6).map(r => r.name).join("، ")}`;
+    await interaction.editReply(msg);
+  }
+  else if (commandName === "radio") {
+    await interaction.deferReply();
+    const conn = await ensureVoice(interaction);
+    if (!conn) return;
+    if (await playURL(interaction, conn, RADIO_URL, true))
+      await interaction.editReply("📻 تشغيل إذاعة القرآن الكريم");
+  }
+  else if (commandName === "pause") {
+    const player = guildPlayers.get(guild.id);
+    if (player?.state.status === AudioPlayerStatus.Playing) { player.pause(); await interaction.reply("⏸️ تم الإيقاف المؤقت"); }
+    else await interaction.reply("❌ ما فيه شي يشتغل");
+  }
+  else if (commandName === "resume") {
+    const player = guildPlayers.get(guild.id);
+    if (player?.state.status === AudioPlayerStatus.Paused) { player.unpause(); await interaction.reply("▶️ تمت المتابعة"); }
+    else await interaction.reply("❌ ما فيه شي موقوف");
+  }
+  else if (commandName === "stop") {
+    const player = guildPlayers.get(guild.id);
+    if (player) { player.stop(); await interaction.reply("⏹️ تم الإيقاف"); }
+    else await interaction.reply("❌ ما فيه شي يشتغل");
+  }
+
+  // =================== Moderation ===================
+  else if (commandName === "ban") {
+    if (!member.permissions.has(PermissionFlagsBits.BanMembers))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    const target = interaction.options.getMember("member");
+    const reason = interaction.options.getString("reason") || "بدون سبب";
+    await target.ban({ reason }).catch(async e => interaction.reply(`❌ فشل: ${e.message}`));
+    await interaction.reply(`🔨 تم حظر **${target.user.tag}** | السبب: ${reason}`);
+  }
+  else if (commandName === "unban") {
+    if (!member.permissions.has(PermissionFlagsBits.BanMembers))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    const uid = interaction.options.getString("user_id");
+    try {
+      const user = await client.users.fetch(uid);
+      await guild.bans.remove(user);
+      await interaction.reply(`✅ تم فك الحظر عن **${user.tag}**`);
+    } catch { await interaction.reply("❌ ما لقيت هذا الشخص في قائمة المحظورين"); }
+  }
+  else if (commandName === "clear") {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    const amount = interaction.options.getInteger("amount");
+    await interaction.deferReply({ ephemeral: true });
+    const deleted = await interaction.channel.bulkDelete(amount, true).catch(() => ({ size: 0 }));
+    await interaction.editReply(`🧹 تم حذف ${deleted.size ?? amount} رسالة`);
+  }
+  else if (commandName === "kick") {
+    if (!member.permissions.has(PermissionFlagsBits.KickMembers))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    const target = interaction.options.getMember("member");
+    const reason = interaction.options.getString("reason") || "بدون سبب";
+    await target.kick(reason).catch(async e => interaction.reply(`❌ فشل: ${e.message}`));
+    await interaction.reply(`👢 تم طرد **${target.user.tag}** | السبب: ${reason}`);
+  }
+  else if (commandName === "timeout") {
+    if (!member.permissions.has(PermissionFlagsBits.ModerateMembers))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    const target  = interaction.options.getMember("member");
+    const minutes = interaction.options.getInteger("minutes");
+    const reason  = interaction.options.getString("reason") || "بدون سبب";
+    await target.timeout(minutes * 60000, reason).catch(async e => interaction.reply(`❌ فشل: ${e.message}`));
+    await interaction.reply(`🔇 تم كتم **${target.user.tag}** لمدة ${minutes} دقيقة | السبب: ${reason}`);
+  }
+  else if (commandName === "untimeout") {
+    if (!member.permissions.has(PermissionFlagsBits.ModerateMembers))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    const target = interaction.options.getMember("member");
+    await target.timeout(null).catch(async e => interaction.reply(`❌ فشل: ${e.message}`));
+    await interaction.reply(`🔊 تم فك الكتم عن **${target.user.tag}**`);
+  }
+  else if (commandName === "lock") {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    await interaction.channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
+    await interaction.reply("🔒 تم قفل الروم");
+  }
+  else if (commandName === "unlock") {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    await interaction.channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: null });
+    await interaction.reply("🔓 تم فتح الروم");
+  }
+  else if (commandName === "slowmode") {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    const seconds = interaction.options.getInteger("seconds");
+    await interaction.channel.setRateLimitPerUser(seconds);
+    await interaction.reply(seconds === 0 ? "✅ تم إيقاف الوضع البطيء" : `🐢 الوضع البطيء: ${seconds} ثانية`);
+  }
+
+  // =================== Line ===================
+  else if (commandName === "setline") {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    lineChannels.add(interaction.channel.id); saveLineChannels();
+    await interaction.reply("✅ تم تفعيل الخط التلقائي");
+  }
+  else if (commandName === "unsetline") {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels))
+      return interaction.reply({ content: "❌ ما عندك صلاحية", ephemeral: true });
+    lineChannels.delete(interaction.channel.id); saveLineChannels();
+    await interaction.reply("✅ تم إيقاف الخط التلقائي");
+  }
+
+  // =================== Games ===================
+  else if (commandName === "trivia") {
+    const item   = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+    const gameId = `${interaction.id}`;
+    triviaGames.set(gameId, { item, winner: null, wrongUsers: new Set() });
+    const row = triviaRow(item, gameId, false, -1);
+    const msg = await interaction.reply({
+      content: `❓ **${item.q}**\n(عندكم ٢٠ ثانية)`,
+      components: [row], fetchReply: true,
+    });
+    setTimeout(async () => {
+      const game = triviaGames.get(gameId);
+      if (!game || game.winner) return;
+      triviaGames.delete(gameId);
+      const correct = item.options[item.answer];
+      const disabledRow = triviaRow(item, gameId, true, -1);
+      await msg.edit({ content: `⏰ انتهى الوقت! الإجابة الصحيحة: **${correct}**`, components: [disabledRow] }).catch(() => {});
+    }, 20000);
+  }
+  else if (commandName === "word") {
+    if (scrambleGames.has(interaction.channel.id))
+      return interaction.reply("❌ فيه لعبة شغالة في هذي القناة!");
+    const word = WORDS[Math.floor(Math.random() * WORDS.length)];
+    let letters = [...word];
+    while (letters.join("") === word) letters.sort(() => Math.random() - 0.5);
+    scrambleGames.set(interaction.channel.id, word);
+    await interaction.reply(`🔤 رتّب الحروف: **${letters.join(" - ")}**\n(عندكم ٣٠ ثانية، اكتبوا الإجابة في الشات)`);
+    setTimeout(() => {
+      if (scrambleGames.get(interaction.channel.id) === word) {
+        scrambleGames.delete(interaction.channel.id);
+        interaction.channel.send(`⏰ انتهى الوقت! الكلمة كانت: **${word}**`).catch(() => {});
+      }
+    }, 30000);
+  }
+  else if (commandName === "top") {
+    const scores = loadScores()[guild.id] || {};
+    if (!Object.keys(scores).length) return interaction.reply("ما فيه نقاط للحين، ابدأوا العبوا! 🎮");
+    const best   = Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+    const lines  = best.map(([uid, pts], i) => `${medals[i]} <@${uid}> — **${pts}** نقطة`);
+    await interaction.reply({ content: "🏆 **المتصدرين**\n" + lines.join("\n"), allowedMentions: { parse: [] } });
+  }
+
+  // =================== Dhikr ===================
+  else if (commandName === "dhikr") {
+    const item = ADHKAR[Math.floor(Math.random() * ADHKAR.length)];
+    await interaction.reply({ embeds: [buildAdhkarEmbed(item)], components: [adhkarRow()] });
+  }
+
+  // =================== Protection Commands ===================
+  else if (commandName === "trust") {
+    if (!ownerGuard(interaction)) return;
+    const target = interaction.options.getMember("member");
+    trustedIds.add(target.id); saveTrusted();
+    await interaction.reply(`✅ تمت إضافة ${target} لقائمة الموثوقين`);
+  }
+  else if (commandName === "untrust") {
+    if (!ownerGuard(interaction)) return;
+    const target = interaction.options.getMember("member");
+    trustedIds.delete(target.id); saveTrusted();
+    await interaction.reply(`✅ تمت إزالة ${target} من قائمة الموثوقين`);
+  }
+  else if (commandName === "trusted") {
+    if (!ownerGuard(interaction)) return;
+    const people = [...OWNER_IDS.map(id => `<@${id}>`), ...[...trustedIds].filter(id => !OWNER_IDS.includes(id)).map(id => `<@${id}>`)];
+    await interaction.reply({
+      content: "🛡️ **الموثوقين:**\n" + (people.length ? people.join("\n") : "ما فيه أحد"),
+      allowedMentions: { parse: [] },
+    });
+  }
+  else if (commandName === "protection") {
+    if (!ownerGuard(interaction)) return;
+    const st = v => v ? "🟢" : "🔴";
+    await interaction.reply(
+      "🛡️ **حالة الحماية**\n" +
+      `${st(ANTI_SPAM)} منع السبام (${SPAM_MAX_MSGS} رسائل / ${SPAM_WINDOW_MS/1000}ث)\n` +
+      `${st(ANTI_INVITES)} منع روابط الدعوات\n` +
+      `${st(ANTI_LINKS)} منع كل الروابط\n` +
+      `${st(ANTI_MENTIONS)} منع المنشن الجماعي (+${MAX_MENTIONS})\n` +
+      `${st(ANTI_BAD_WORDS && BAD_WORDS.length)} الكلمات الممنوعة (${BAD_WORDS.length})\n` +
+      `${st(ANTI_RAID)} ضد الـ Raid (${RAID_JOIN_LIMIT} دخول / ${RAID_WINDOW_MS/1000}ث)\n` +
+      `${st(!!MIN_ACCOUNT_AGE_DAYS)} عمر الحساب الأدنى (${MIN_ACCOUNT_AGE_DAYS} يوم)\n` +
+      `${st(ANTI_NUKE)} ضد التخريب (${NUKE_LIMIT} عمليات / ${NUKE_WINDOW_MS/1000}ث → ${NUKE_ACTION})\n` +
+      `${st(ANTI_BOT_ADD)} منع إضافة بوتات\n` +
+      `${st(LOG_CHANNEL_ID !== "0")} روم اللوق`
+    );
+  }
+
+  // =================== Subscriptions ===================
+  else if (commandName === "subpanel") {
+    if (!ownerGuard(interaction)) return;
+    const embed = new EmbedBuilder()
+      .setTitle("🔔 تنبيهات السيرفر بالخاص")
+      .setDescription("اضغط الزر لتوصلك إعلانات وتحديثات السيرفر بالخاص.\nتقدر تلغي الاشتراك بأي وقت.")
+      .setColor(0x2b2d31);
+    await interaction.reply({ embeds: [embed], components: [subscribeRow()] });
+  }
+  else if (commandName === "broadcast") {
+    if (!ownerGuard(interaction)) return;
+    await interaction.deferReply({ ephemeral: true });
+    const msg = interaction.options.getString("message");
+    const targets = [...dmSubs].map(id => guild.members.cache.get(id)).filter(m => m && !m.user.bot);
+    if (!targets.length) return interaction.editReply("❌ ما فيه مشتركين للحين");
+    const embed = new EmbedBuilder()
+      .setDescription(msg).setColor(0xBEC3CD).setTimestamp()
+      .setAuthor({ name: guild.name, iconURL: guild.iconURL() })
+      .setFooter({ text: "وصلتك لأنك مشترك بالتنبيهات • لإلغاء الاشتراك اضغط زر 🔕 في السيرفر" });
+    await interaction.editReply(`⏳ جاري الإرسال لـ ${targets.length} مشترك...`);
+    let ok = 0, failed = 0;
+    for (const m of targets) {
+      try { await m.send({ embeds: [embed] }); ok++; } catch { failed++; }
+      await sleep(BROADCAST_DELAY);
+    }
+    await interaction.channel.send(`✅ تم الإرسال: ${ok} | فشل (خاصهم مقفل): ${failed}`).catch(() => {});
+  }
+  else if (commandName === "broadcastall") {
+    if (!ownerGuard(interaction)) return;
+    if (broadcastRunning) return interaction.reply({ content: "❌ فيه إرسال شغال الحين", ephemeral: true });
+    const msg   = interaction.options.getString("message");
+    const count = guild.members.cache.filter(m => !m.user.bot).size;
+    const estMin = Math.round(count * BROADCAST_ALL_DELAY / 60000);
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`bcast_confirm_${interaction.user.id}`).setLabel("تأكيد الإرسال للجميع").setEmoji("⚠️").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`bcast_cancel_${interaction.user.id}`).setLabel("إلغاء").setStyle(ButtonStyle.Secondary),
+    );
+    const sentMsg = await interaction.reply({
+      content: `⚠️ بترسل لـ **${count}** عضو بالخاص (تقريباً ${estMin} دقيقة).\nمتأكد؟`,
+      components: [row], fetchReply: true,
+    });
+    pendingBroadcasts.set(sentMsg.id, msg);
+  }
+  else if (commandName === "cancelbroadcast") {
+    if (!ownerGuard(interaction)) return;
+    if (!broadcastRunning) return interaction.reply({ content: "❌ ما فيه إرسال شغال", ephemeral: true });
+    broadcastCancel = true;
+    await interaction.reply("⏹️ جاري الإيقاف...");
+  }
+});
+
+// =================== Trivia helpers ===================
+const triviaGames     = new Map();
+const pendingBroadcasts = new Map();
+
+function triviaRow(item, gameId, disabled, correctIdx) {
+  return new ActionRowBuilder().addComponents(
+    item.options.map((opt, i) =>
+      new ButtonBuilder()
+        .setCustomId(`trivia_${gameId}_${i}`)
+        .setLabel(opt)
+        .setStyle(disabled && i === correctIdx ? ButtonStyle.Success : ButtonStyle.Primary)
+        .setDisabled(disabled)
+    )
+  );
+}
+
+// =================== Owner guard ===================
+function ownerGuard(interaction) {
+  if (OWNER_IDS.includes(interaction.user.id) || interaction.user.id === interaction.guild.ownerId) return true;
+  interaction.reply({ content: "❌ هذا الأمر للأونرات فقط", ephemeral: true });
+  return false;
+}
+
+// =================== Broadcast All ===================
+async function runBroadcastAll(guild, channel, message) {
+  broadcastRunning = true; broadcastCancel = false;
+  const members = guild.members.cache.filter(m => !m.user.bot);
+  const embed = new EmbedBuilder()
+    .setDescription(message).setColor(0xBEC3CD).setTimestamp()
+    .setAuthor({ name: guild.name, iconURL: guild.iconURL() })
+    .setFooter({ text: `رسالة من إدارة سيرفر ${guild.name}` });
+  let ok = 0, closed = 0, stopped = "";
+  for (const [, m] of members) {
+    if (broadcastCancel) { stopped = "⏹️ تم الإيقاف يدوياً"; break; }
+    try { await m.send({ embeds: [embed] }); ok++; }
+    catch (e) {
+      if (e.code === 40003 || e.status === 429) { stopped = "🛑 ديسكورد حدّ السرعة، توقف الإرسال"; break; }
+      closed++;
+    }
+    await sleep(BROADCAST_ALL_DELAY);
+  }
+  broadcastRunning = false;
+  await channel.send(`📢 انتهى الإرسال. وصلت: **${ok}** | فشل: **${closed}** ${stopped}`).catch(() => {});
+}
+
+client.login("MTU2OTY0MjcyMTU4MzQzMTc3MA.GiVr4a.gg7W3n7-2DQXD0MvMG0wSC1spLLmI8aM_Lun0Y");
